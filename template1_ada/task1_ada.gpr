@@ -1,0 +1,96 @@
+with "opengl";
+with "opengl-glfw";
+
+project Task1_Ada is
+
+   for Languages use ("ada", "C++");
+   for Object_Dir use "obj";
+   for Exec_Dir use "bin";
+   type Glfw_Version_Type is
+      ("2", "3");
+   Glfw_Version : Glfw_Version_Type := external ("GLFW_Version", "3");
+   type Library_Kinds is
+      ("static", "relocatable");
+   Library_Type : Library_Kinds := external ("Library_Type", "static");
+   type Toggle_Type is
+      ("enabled", "disabled");
+   Auto_Exceptions : Toggle_Type := external ("Auto_Exceptions", "enabled");
+   type Mode_Type is
+      ("debug", "release");
+   Mode : Mode_Type := external ("Mode", "debug");
+
+   -- Different operating systems need different linker
+   -- flags. Moreover, some features (such as WGL, GLX,
+   -- CGL) are only available on one specific platform.
+   -- Supported values:
+   --  * windows : Microsoft Windows
+   --  * x11     : X Window System
+   --  * quartz  : Quartz Compositor (OS X)
+   type Windowing_System_Type is
+      ("windows", "x11", "quartz");
+   -- has a default so that the project can be opened in GPS.
+   Windowing_System : Windowing_System_Type := external ("Windowing_System", "x11");
+
+   case Glfw_Version is
+
+      when "2" =>
+         for Source_Dirs use ("task1", "gl_ada");
+         for Main use ("task1");
+
+      when "3" =>
+
+         case Library_Type is
+
+            when "static" =>
+
+               case Auto_Exceptions is
+
+                  when "enabled" =>
+
+                     case Mode is
+
+                        when "debug" =>
+                           for Source_Dirs use ("task1", "gl_ada");
+                           for Main use ("task1");
+
+                        when "release" =>
+
+                           case Windowing_System is
+
+                              when "windows" =>
+                                 for Source_Dirs use ("task1", "gl_ada");
+                                 for Main use ("task1");
+
+                              when "x11" =>
+                                 for Source_Dirs use ("task1", "gl_ada");
+                                 for Main use ("task1");
+
+                              when "quartz" =>
+                                 for Source_Dirs use ("task1", "gl_ada");
+                                 for Main use ("task1");
+                           end case;
+                     end case;
+
+                  when "disabled" =>
+                     for Source_Dirs use ("task1", "gl_ada");
+                     for Main use ("task1");
+               end case;
+
+            when "relocatable" =>
+               for Source_Dirs use ("task1", "gl_ada");
+               for Main use ("task1");
+         end case;
+   end case;
+
+   package Ide renames Opengl.Ide;
+
+   package Builder renames Opengl.Builder;
+
+   package Compiler renames Opengl.Compiler;
+
+   package Linker is
+      for Default_Switches ("ada") use ("-lfreeimage");
+   end Linker;
+
+end Task1_Ada;
+

@@ -1,0 +1,3 @@
+/home/danroor/Documents/study/msu/course 3/CG/msu_cmc_cg_2021/template1_cpp/CMakeFiles/rebuild_cache.dir
+/home/danroor/Documents/study/msu/course 3/CG/msu_cmc_cg_2021/template1_cpp/CMakeFiles/main.dir
+/home/danroor/Documents/study/msu/course 3/CG/msu_cmc_cg_2021/template1_cpp/CMakeFiles/edit_cache.dir
