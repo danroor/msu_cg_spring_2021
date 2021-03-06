@@ -3,21 +3,133 @@
 #include "Player.h"
 
 #include <vector>
-
+#include <map>
+#include <iostream>
+#include <stdio.h>
+#include <string>
 
 #define GLFW_DLL
 #include <GLFW/glfw3.h>
 
+constexpr GLsizei WINDOW_WIDTH  = 1024,
+                  WINDOW_HEIGHT = 1024,
+                  BORDER_MARGIN = 4;
 
+constexpr int X_TILES = WINDOW_WIDTH  / tileSize,
+              Y_TILES = WINDOW_HEIGHT / tileSize;
 
+constexpr int N_LEVELS = 2;
 
+class LevelMap {
 
+public:
 
+  char get(int x, int y) const {
+    return symbols[y][x];
+  }
 
-#include <iostream>
-#include <stdio.h>
+  // read map from file
+  // returns player starting position
+  Point read(const std::string &file) {
 
-constexpr GLsizei WINDOW_WIDTH = 1024, WINDOW_HEIGHT = 1024;
+    FILE *f = fopen(file.c_str(), "r");
+    if (f == nullptr) {
+      throw std::runtime_error("Unable to open file");
+    }
+
+    char c;
+    symbols.resize(Y_TILES);
+
+    int x = 0, y = 0;
+    Point starting_pos{ .x = WINDOW_WIDTH / 2, .y = WINDOW_HEIGHT / 2};
+
+    while ( (c = (char) fgetc(f) ) != EOF ) {
+
+      // ignore \n symbols so that a user could
+      // write level map in multiple lines
+      if (c == '\n') {
+        continue;
+      }
+
+      if (c == '@') {
+        starting_pos.x = x * tileSize;
+        starting_pos.y = y * tileSize;
+        c = '.'; // player is standing on the floor
+      }
+      symbols[y].push_back(c);
+
+      x = (x + 1) % X_TILES;
+      if (x == 0) {
+        y++;
+      }
+    }
+
+    if (x != 0 || y != Y_TILES) {
+      fclose(f);
+      throw std::runtime_error("Wrong number of characters in the file");
+    }
+
+    fclose(f);
+    return starting_pos;
+  };
+
+  void draw(Image &screen, std::map <char, Image> &tile) {
+    char tile_sym;
+    for (int x = 0; x < X_TILES; ++x) {
+      for (int y = 0; y < Y_TILES; ++y) {
+
+        tile_sym = symbols[y][x]; 
+        tile[ tile_sym ].set_x(x * tileSize);
+        tile[ tile_sym ].set_y(y * tileSize);
+        tile[ tile_sym ].Draw(screen);
+      } 
+    }
+
+  };
+
+  void reset() {
+    for (auto v : symbols) {
+      v.clear();
+    }
+    symbols.clear();
+  };
+
+private:
+  std::vector < std::vector <char> > symbols;
+
+};
+
+// redraw area near player
+void redrawArea(Player &p, Image &screenBuffer, LevelMap &Level, std::map <char, Image> &tile) {
+  auto coords = p.getCoords();
+  int px = coords.x,
+      py = coords.y,
+      pv = p.getSpeed();
+
+  int lx = px / tileSize - pv,
+      rx = px / tileSize + pv,
+      uy = py / tileSize + pv,
+      dy = py / tileSize - pv;
+
+  lx = lx >= 0 ? lx : 0;
+  rx = rx < X_TILES ? rx : X_TILES - 1;
+  dy = dy >= 0 ? dy : 0;
+  uy = uy < Y_TILES ? uy : Y_TILES - 1;
+
+  //std::cout << px / tileSize << " " << py / tileSize << "\n" << lx << " " << rx << "\n" << dy << " " << uy << "\n\n\n";  
+
+  char tile_sym;
+  for (int x = lx; x <= rx; ++x) {
+    for (int y = dy; y <= uy; ++y) {
+      //std::cout << "SDMVLKSKLSRBJK:SRBNJR:" << std::endl;
+      tile_sym = Level.get(x,y); 
+      //std::cout << "voknbkjnetjkbnerejba" << std::endl;
+      tile[ tile_sym ].set_x(x * tileSize);
+      tile[ tile_sym ].set_y(y * tileSize);
+      tile[ tile_sym ].Draw(screenBuffer);
+    }
+  }
+}
 
 struct InputState
 {
@@ -55,16 +167,152 @@ void OnKeyboardPressed(GLFWwindow* window, int key, int scancode, int action, in
 	}
 }
 
-void processPlayerMovement(Player &player)
-{
-  if (Input.keys[GLFW_KEY_W])
-    player.ProcessInput(MovementDir::UP);
-  else if (Input.keys[GLFW_KEY_S])
-    player.ProcessInput(MovementDir::DOWN);
-  if (Input.keys[GLFW_KEY_A])
-    player.ProcessInput(MovementDir::LEFT);
-  else if (Input.keys[GLFW_KEY_D])
-    player.ProcessInput(MovementDir::RIGHT);
+bool mayGo(int x, int y, MovementDir dir, LevelMap &Level) {
+
+  // if % tileSize != 0
+  // then two blocks above/below/to the left/to the right
+  // are on the player's way
+  // otherwise there is only one obstacle
+  bool x2 = x % tileSize != 0,
+       y2 = y % tileSize != 0;
+
+  int xt = x / tileSize, // x_tiles
+      yt = y / tileSize; // y_tiles
+
+  switch(dir)
+  {
+    case MovementDir::UP:
+      if (y + tileSize >= WINDOW_HEIGHT - BORDER_MARGIN) {
+        return false;
+      }
+
+      if (Level.get(xt, yt + 1) == '#' || Level.get(xt, yt + 1) == '%') {
+        return false;
+      }
+
+      if (x2 && Level.get(xt + 1, yt + 1) == '#' || Level.get(xt + 1, yt + 1) == '%') {
+        return false;
+      }
+
+      break;
+
+    case MovementDir::DOWN:
+      if (y <= BORDER_MARGIN) {
+        return false;
+      }
+
+      // the player is far enough from the next tile below
+      if (y2) {
+        return true;
+      }
+
+      if (Level.get(xt, yt - 1) == '#' || Level.get(xt, yt - 1) == '%') {
+        return false;
+      }
+
+      if (x2 && Level.get(xt + 1, yt - 1) == '#' || Level.get(xt + 1, yt - 1) == '%') {
+        return false;
+      }
+
+      break;
+    
+    case MovementDir::LEFT:
+      if (x <= BORDER_MARGIN) {
+        return false;
+      }
+
+      // the player is far enough from the next tile to the left
+      if (x2) {
+        return true;
+      }
+
+      if (Level.get(xt - 1, yt) == '#' || Level.get(xt - 1, yt) == '%') {
+        return false;
+      }
+
+      if (y2 && Level.get(xt - 1, yt + 1) == '#' || Level.get(xt - 1, yt + 1) == '%') {
+        return false;
+      }
+
+      break;
+    
+    case MovementDir::RIGHT:
+      if (x + tileSize >= WINDOW_WIDTH - BORDER_MARGIN) {
+        return false;
+      }
+
+      if (Level.get(xt + 1, yt) == '#' || Level.get(xt + 1, yt) == '%') {
+        return false;
+      }
+
+      if (y2 && Level.get(xt + 1, yt + 1) == '#' || Level.get(xt + 1, yt + 1) == '%') {
+        return false;
+      }
+
+      break;
+    
+    default:
+      break;
+  }
+
+  return true;
+}
+
+void processPlayerMovement(Player &player, LevelMap &Level) {
+  auto coords = player.getCoords();
+  int x = coords.x;
+  int y = coords.y;
+
+  if (Input.keys[GLFW_KEY_W]) { 
+    auto dir = MovementDir::UP;
+    if (mayGo(x,y,dir,Level)) {
+      player.ProcessInput(dir);
+    }
+  }
+
+  if (Input.keys[GLFW_KEY_S]) {
+    auto dir = MovementDir::DOWN;
+    if (mayGo(x,y,dir,Level)) {
+      player.ProcessInput(dir);
+    }
+  }
+  
+  if (Input.keys[GLFW_KEY_A]) {
+    auto dir = MovementDir::LEFT;
+    if (mayGo(x,y,dir,Level)) {
+      player.ProcessInput(dir);
+    }
+  }
+  
+  if (Input.keys[GLFW_KEY_D]) {
+    auto dir = MovementDir::RIGHT;
+    if (mayGo(x,y,dir,Level)) {
+      player.ProcessInput(dir);
+    }
+  }
+
+  // check the tile the player is standing on right now
+  coords = player.getCoords();
+  x = coords.x;
+  y = coords.y;
+
+  // choosing the tile covered by the
+  // biggest fraction of player tile's
+  // square area
+  x = x / tileSize + int(x % tileSize > tileSize / 2);
+  y = y / tileSize + int(y % tileSize > tileSize / 2);
+
+  switch (Level.get(x,y))  {
+    case ' ':
+      player.status = playerStatus::DEAD;
+      break;
+    case 'x':
+      player.status = playerStatus::ESCAPED;
+      break;
+    default:
+      break;
+  }
+  
 }
 
 void OnMouseButtonClicked(GLFWwindow* window, int button, int action, int mods)
@@ -126,6 +374,25 @@ int initGL()
 	return 0;
 }
 
+void Win(Image &screen) {
+  std::cout << "WIN\n";
+  for(;;){}
+}
+
+void gameOver(Image &screen) {
+  std::cout << "Game Over\n";
+  for(;;){}
+}
+
+void nextLevel(Image &screen) {
+  std::cout << "Press W to go to the next level\n";
+
+  glDrawPixels (WINDOW_WIDTH, WINDOW_HEIGHT, GL_RGBA, GL_UNSIGNED_BYTE, screen.Data()); GL_CHECK_ERRORS;
+  while (!Input.keys[GLFW_KEY_W]) {
+    glfwPollEvents();
+  }
+}
+
 int main(int argc, char** argv)
 {
 	if(!glfwInit())
@@ -159,36 +426,50 @@ int main(int argc, char** argv)
 	while (gl_error != GL_NO_ERROR)
 		gl_error = glGetError();
 
-	//Image img("../resources/tex.png");
-  //Image img("../resources/White-Square.jpg");
-  int x_tiles = WINDOW_WIDTH / tileSize;
-  int y_tiles = WINDOW_HEIGHT / tileSize;
-  
-  std::vector<Image> tiles(x_tiles * y_tiles, Image("../resources/breakable_wall.png"));
-  //std::vector<Image> tiles(x_tiles * y_tiles, Image("../resources/Bonus.png"));
-
-  for (int y = 0; y < y_tiles; ++y) {
-    for (int x = 0; x < x_tiles; ++x) {
-      tiles[x + y * x_tiles].set_x(x * tileSize);
-      tiles[x + y * x_tiles].set_y(y * tileSize);
-    }
-  }
-
-
-
-  Image img("../resources/breakable_wall.png");
 	Image screenBuffer(WINDOW_WIDTH, WINDOW_HEIGHT, 4);
-
-  //Point starting_pos{.x = img.Width() / 2, .y = img.Height() / 2};
-  Point starting_pos{.x = 10, .y = 10};
-  Player player{starting_pos};
 
   glViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);  GL_CHECK_ERRORS;
   glClearColor(0.0f, 0.0f, 0.0f, 1.0f); GL_CHECK_ERRORS;
+  auto tile = std::map <char, Image>();
 
-  //auto qwer = img.Data()[197627];
+  tile[' '] = Image("../resources/tiles/space.png");
+  tile['.'] = Image("../resources/tiles/floor.png");
+  tile['x'] = Image("../resources/tiles/exit.png");
 
-  std::cout << tiles.size() << std::endl;
+  tile['#'] = Image("../resources/tiles/unbreakable_wall.png");
+  tile['%'] = Image("../resources/tiles/breakable_wall.png");
+
+  // broken wall appears
+  // after breaking a breakable wall.
+  // broken_wall.png, which is a lying rock,
+  // is drawn above the floor tile
+  tile['b'] = tile['.'];
+  Image("../resources/tiles/broken_wall.png").Draw(tile['b']);
+
+  //std::cout << tile.size() << std::endl;
+
+  //PLAYER
+  //tile['@'] = ; 
+  //std::cout << "SDMVLKSKLSRBJK:SRBNJR:" << std::endl;
+
+  Point starting_pos;
+  LevelMap Level;
+
+  try {
+    starting_pos = Level.read("../resources/levels/1.txt");    
+  } catch (std::runtime_error &exc) {
+    std::cout << exc.what() << std::endl;
+    glfwTerminate();
+    return 0;
+  }
+
+
+  Player player{starting_pos};
+
+  //std::cout << "SDMVLKSKLSRBJK:SRBNJR:" << std::endl;
+
+  Level.draw(screenBuffer, tile);
+  int curLevel = 1;
 
   //game loop
 	while (!glfwWindowShouldClose(window))
@@ -198,20 +479,44 @@ int main(int argc, char** argv)
 		lastFrame = currentFrame;
     glfwPollEvents();
 
-    //img.Draw(screenBuffer);
-    processPlayerMovement(player);
-
-    for (int y = 0; y < y_tiles; ++y) {
-      for (int x = 0; x < x_tiles; ++x) {
-        tiles[x + y * x_tiles].Draw(screenBuffer);
-      }
+    processPlayerMovement(player, Level);
+    if (player.Moved()) {
+      redrawArea(player, screenBuffer, Level, tile);      
     }
+
     player.Draw(screenBuffer);
 
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); GL_CHECK_ERRORS;
 
-    //glDrawPixels (img.Width(), img.Height(), GL_RGBA, GL_UNSIGNED_BYTE, img.Data()); GL_CHECK_ERRORS;
     glDrawPixels (WINDOW_WIDTH, WINDOW_HEIGHT, GL_RGBA, GL_UNSIGNED_BYTE, screenBuffer.Data()); GL_CHECK_ERRORS;
+
+    if (player.status == playerStatus::ESCAPED) {
+      curLevel++;
+      if (curLevel > N_LEVELS) {
+        Win(screenBuffer);
+        break;
+      } 
+
+      Level.reset();
+      try {
+        starting_pos = Level.read("../resources/levels/" + std::to_string(curLevel) + ".txt");   
+      } catch (std::runtime_error &exc) {
+        std::cout << exc.what() << std::endl;
+        glfwTerminate();
+        return 0;
+      }
+
+      player.setPos(starting_pos.x, starting_pos.y);
+      Level.draw(screenBuffer, tile);
+      player.status = playerStatus::OK;
+
+      nextLevel(screenBuffer);
+    }
+
+    if (player.status == playerStatus::DEAD) {
+      gameOver(screenBuffer);
+      break;
+    }
 
 		glfwSwapBuffers(window);
 	}

@@ -47,11 +47,15 @@ Player.h
 /home/danroor/Documents/study/msu/course 3/CG/msu_cmc_cg_2021/template1_cpp/Player.h
 vector
 -
-GLFW/glfw3.h
+map
 -
 iostream
 -
 stdio.h
+-
+string
+-
+GLFW/glfw3.h
 -
 
 /home/danroor/Documents/study/msu/course 3/CG/msu_cmc_cg_2021/template1_cpp/stb_image.h

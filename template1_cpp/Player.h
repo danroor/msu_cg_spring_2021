@@ -17,6 +17,10 @@ enum class MovementDir
   RIGHT
 };
 
+enum class playerStatus {
+  OK, DEAD, ESCAPED
+};
+
 struct Player
 {
   explicit Player(Point pos = {.x = 10, .y = 10}) :
@@ -26,11 +30,20 @@ struct Player
   void ProcessInput(MovementDir dir);
   void Draw(Image &screen);
 
+  Point getCoords() { return coords; }
+  int getSpeed() { return move_speed; }
+  void setPos(int x, int y) {
+    coords.x = x;
+    coords.y = y;
+  }
+
+  playerStatus status = playerStatus::OK;
+
 private:
   Point coords {.x = 10, .y = 10};
   Point old_coords {.x = 10, .y = 10};
   Pixel color {.r = 255, .g = 0, .b = 0, .a = 0};
-  int move_speed = 50;
+  int move_speed = 4;
 
 };
 

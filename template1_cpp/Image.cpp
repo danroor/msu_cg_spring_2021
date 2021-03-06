@@ -32,6 +32,21 @@ Image::Image(int a_width, int a_height, int a_channels)
   }
 }
 
+Image& Image::operator=(const Image &im) {
+  x = im.x;
+  y = im.y;
+  width = im.width;
+  height = im.height;
+  channels = im.channels;
+  size = im.size;
+  self_allocated = im.self_allocated;
+
+  data = new Pixel[size];
+  for (int i = 0; i < size; ++i) {
+    data[i] = im.data[i];
+  }
+}
+
 
 int Image::Save(const std::string &a_path)
 {
@@ -61,14 +76,10 @@ void Image::Draw(Image &screen)
   {
     for(int xOnPic = 0; xOnPic < width; ++xOnPic)
     {
-      //std::cout << (data + xOnPic + yOnPic * width == nullptr) << std::endl;
-      //auto qwer = data[xOnPic + yOnPic * width];
-     //  std::cout << "MORGENSHTERN" << std::endl;
-      screen.PutPixel(x + xOnPic, y + yOnPic, data[xOnPic + yOnPic * width]);
+      Pixel newPixel = mix(screen.Data()[x + xOnPic + (y + yOnPic) * screen.Width()], data[xOnPic + yOnPic * width]);
+      screen.PutPixel(x + xOnPic, y + yOnPic, newPixel);
     }
-
   }
-   //std::cout << "MORGENSHTERN" << std::endl;
 }
 
 Image::~Image()
