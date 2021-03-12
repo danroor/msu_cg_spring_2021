@@ -37,31 +37,14 @@ void Player::ProcessInput(MovementDir dir)
 void Player::Draw(Image &screen)
 {
 
-  if(Moved())
-  {
-    for(int y = old_coords.y; y <= old_coords.y + tileSize; ++y)
-    {
-      for(int x = old_coords.x; x <= old_coords.x + tileSize; ++x)
-      {
-        screen.PutPixel(x, y, backgroundColor);
-      }
-    }
-    old_coords = coords;
+  if (dir == MovementDir::LEFT) {
+    left.set_x(coords.x);
+    left.set_y(coords.y);
+    left.Draw(screen);
+  } else {
+    right.set_x(coords.x);
+    right.set_y(coords.y);
+    right.Draw(screen);
   }
 
-  for(int y = coords.y; y <= coords.y + tileSize; ++y)
-  {
-    for(int x = coords.x; x <= coords.x + tileSize; ++x)
-    {
-      Pixel newPixel = color;
-      Pixel oldPixel = screen.Data()[x + y * screen.Width()];
-
-      newPixel.r = newPixel.a / 255.0 * (newPixel.r - oldPixel.r) + oldPixel.r;
-      newPixel.g = newPixel.a / 255.0 * (newPixel.g - oldPixel.g) + oldPixel.g;
-      newPixel.b = newPixel.a / 255.0 * (newPixel.b - oldPixel.b) + oldPixel.b;
-      newPixel.a = 255;
-
-      screen.PutPixel(x, y, newPixel);
-    }
-  }
 }

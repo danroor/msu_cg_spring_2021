@@ -19,6 +19,9 @@ constexpr int X_TILES = WINDOW_WIDTH  / tileSize,
               Y_TILES = WINDOW_HEIGHT / tileSize;
 
 constexpr int N_LEVELS = 2;
+constexpr int ANIMATION_FREQUENCY = 50;
+constexpr int SMASH_COOLDOWN = 100; // wall smashing cooldown 
+                                    // (player is unable to break walls during cooldown)
 
 class LevelMap {
 
@@ -26,6 +29,13 @@ public:
 
   char get(int x, int y) const {
     return symbols[y][x];
+  }
+
+  void set(int x, int y, char c) {
+    if (c != ' ' && c != '.' && c != '#' && c != '%' && c != 'b' && c != 'x'&& c != '@') {
+      throw std::runtime_error("No such tile");
+    }
+    symbols[y][x] = c;
   }
 
   // read map from file
@@ -75,10 +85,12 @@ public:
 
   void draw(Image &screen, std::map <char, Image> &tile) {
     char tile_sym;
+
     for (int x = 0; x < X_TILES; ++x) {
       for (int y = 0; y < Y_TILES; ++y) {
 
         tile_sym = symbols[y][x]; 
+
         tile[ tile_sym ].set_x(x * tileSize);
         tile[ tile_sym ].set_y(y * tileSize);
         tile[ tile_sym ].Draw(screen);
@@ -86,6 +98,37 @@ public:
     }
 
   };
+
+  void animation(Image &screen, std::map <char, Image> &tile) {
+    
+    space_animation = (space_animation + 1) % ANIMATION_FREQUENCY;
+
+    if (!space_animation) {
+
+      for (int x = 0; x < X_TILES; ++x) {
+        for (int y = 0; y < Y_TILES; ++y) {
+          switch (symbols[y][x]) {
+            case ' ':
+              symbols[y][x] = '*'; 
+              tile[ '*' ].set_x(x * tileSize);
+              tile[ '*' ].set_y(y * tileSize);
+              tile[ '*' ].Draw(screen);
+              break;
+            case '*':
+              symbols[y][x] = ' ';
+              tile[ ' ' ].set_x(x * tileSize);
+              tile[ ' ' ].set_y(y * tileSize);
+              tile[ ' ' ].Draw(screen); 
+              break;
+            default:
+              break;
+          }
+        }
+      }
+
+    }
+
+  }
 
   void reset() {
     for (auto v : symbols) {
@@ -96,11 +139,11 @@ public:
 
 private:
   std::vector < std::vector <char> > symbols;
-
+  int space_animation = 0;
 };
 
 // redraw area near player
-void redrawArea(Player &p, Image &screenBuffer, LevelMap &Level, std::map <char, Image> &tile) {
+void redrawArea(Player &p, Image &screen, LevelMap &Level, std::map <char, Image> &tile) {
   auto coords = p.getCoords();
   int px = coords.x,
       py = coords.y,
@@ -126,7 +169,7 @@ void redrawArea(Player &p, Image &screenBuffer, LevelMap &Level, std::map <char,
       //std::cout << "voknbkjnetjkbnerejba" << std::endl;
       tile[ tile_sym ].set_x(x * tileSize);
       tile[ tile_sym ].set_y(y * tileSize);
-      tile[ tile_sym ].Draw(screenBuffer);
+      tile[ tile_sym ].Draw(screen);
     }
   }
 }
@@ -149,10 +192,6 @@ void OnKeyboardPressed(GLFWwindow* window, int key, int scancode, int action, in
 {
 	switch (key)
 	{
-	case GLFW_KEY_ESCAPE:
-		if (action == GLFW_PRESS)
-			glfwSetWindowShouldClose(window, GL_TRUE);
-		break;
   case GLFW_KEY_1:
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
     break;
@@ -160,8 +199,12 @@ void OnKeyboardPressed(GLFWwindow* window, int key, int scancode, int action, in
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
     break;
 	default:
-		if (action == GLFW_PRESS)
+		if (action == GLFW_PRESS) {
       Input.keys[key] = true;
+      if (key == GLFW_KEY_ESCAPE) {
+        glfwSetWindowShouldClose(window, GL_TRUE);
+      }
+    }
 		else if (action == GLFW_RELEASE)
       Input.keys[key] = false;
 	}
@@ -190,7 +233,7 @@ bool mayGo(int x, int y, MovementDir dir, LevelMap &Level) {
         return false;
       }
 
-      if (x2 && Level.get(xt + 1, yt + 1) == '#' || Level.get(xt + 1, yt + 1) == '%') {
+      if (x2 && (Level.get(xt + 1, yt + 1) == '#' || Level.get(xt + 1, yt + 1) == '%') ) {
         return false;
       }
 
@@ -210,7 +253,7 @@ bool mayGo(int x, int y, MovementDir dir, LevelMap &Level) {
         return false;
       }
 
-      if (x2 && Level.get(xt + 1, yt - 1) == '#' || Level.get(xt + 1, yt - 1) == '%') {
+      if (x2 && (Level.get(xt + 1, yt - 1) == '#' || Level.get(xt + 1, yt - 1) == '%') ) {
         return false;
       }
 
@@ -230,7 +273,7 @@ bool mayGo(int x, int y, MovementDir dir, LevelMap &Level) {
         return false;
       }
 
-      if (y2 && Level.get(xt - 1, yt + 1) == '#' || Level.get(xt - 1, yt + 1) == '%') {
+      if (y2 && (Level.get(xt - 1, yt + 1) == '#' || Level.get(xt - 1, yt + 1) == '%') ) {
         return false;
       }
 
@@ -245,7 +288,7 @@ bool mayGo(int x, int y, MovementDir dir, LevelMap &Level) {
         return false;
       }
 
-      if (y2 && Level.get(xt + 1, yt + 1) == '#' || Level.get(xt + 1, yt + 1) == '%') {
+      if (y2 && (Level.get(xt + 1, yt + 1) == '#' || Level.get(xt + 1, yt + 1) == '%') ) {
         return false;
       }
 
@@ -258,10 +301,44 @@ bool mayGo(int x, int y, MovementDir dir, LevelMap &Level) {
   return true;
 }
 
+void breakWall(Player &player, LevelMap &Level) {
+  // check the tile the player is standing on right now
+  auto coords = player.getCoords();
+  int x = coords.x;
+  int y = coords.y;
+
+  // choosing the tile covered by the
+  // biggest fraction of player tile's
+  // square area
+  x = x / tileSize + int(x % tileSize > tileSize / 2);
+  y = y / tileSize + int(y % tileSize > tileSize / 2);
+
+  if (Level.get(x - 1, y) == '%') {
+    Level.set(x - 1,y,'b');
+    player.smash_cooldown = SMASH_COOLDOWN;
+  }
+  if (Level.get(x + 1, y) == '%') {
+    Level.set(x + 1,y,'b');
+    player.smash_cooldown = SMASH_COOLDOWN;
+  }
+  if (Level.get(x, y - 1) == '%') {
+    Level.set(x,y - 1,'b');
+    player.smash_cooldown = SMASH_COOLDOWN;
+  }
+  if (Level.get(x, y + 1) == '%') {
+    Level.set(x,y + 1,'b');
+    player.smash_cooldown = SMASH_COOLDOWN;
+  }
+}
+
 void processPlayerMovement(Player &player, LevelMap &Level) {
   auto coords = player.getCoords();
   int x = coords.x;
   int y = coords.y;
+
+  if (player.smash_cooldown > 0) {
+    player.smash_cooldown--;
+  }
 
   if (Input.keys[GLFW_KEY_W]) { 
     auto dir = MovementDir::UP;
@@ -282,6 +359,7 @@ void processPlayerMovement(Player &player, LevelMap &Level) {
     if (mayGo(x,y,dir,Level)) {
       player.ProcessInput(dir);
     }
+    player.changeDir(MovementDir::LEFT);
   }
   
   if (Input.keys[GLFW_KEY_D]) {
@@ -289,6 +367,11 @@ void processPlayerMovement(Player &player, LevelMap &Level) {
     if (mayGo(x,y,dir,Level)) {
       player.ProcessInput(dir);
     }
+    player.changeDir(MovementDir::RIGHT);
+  }
+
+  if (Input.keys[GLFW_KEY_SPACE] && player.smash_cooldown == 0) {
+    breakWall(player, Level);
   }
 
   // check the tile the player is standing on right now
@@ -304,6 +387,7 @@ void processPlayerMovement(Player &player, LevelMap &Level) {
 
   switch (Level.get(x,y))  {
     case ' ':
+    case '*':
       player.status = playerStatus::DEAD;
       break;
     case 'x':
@@ -369,28 +453,82 @@ int initGL()
   std::cout << "Controls: "<< std::endl;
   std::cout << "press right mouse button to capture/release mouse cursor  "<< std::endl;
   std::cout << "W, A, S, D - movement  "<< std::endl;
+  std::cout << "Spacebar - break green wall  "<< std::endl;
   std::cout << "press ESC to exit" << std::endl;
 
 	return 0;
 }
 
-void Win(Image &screen) {
-  std::cout << "WIN\n";
-  for(;;){}
-}
-
-void gameOver(Image &screen) {
-  std::cout << "Game Over\n";
-  for(;;){}
-}
-
-void nextLevel(Image &screen) {
-  std::cout << "Press W to go to the next level\n";
-
+void Win(Image &screen, Image &victory, LevelMap &Level, std::map <char, Image> &tile, Player &player, GLFWwindow*  window) {
+  victory.Draw(screen);
+  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); GL_CHECK_ERRORS;
   glDrawPixels (WINDOW_WIDTH, WINDOW_HEIGHT, GL_RGBA, GL_UNSIGNED_BYTE, screen.Data()); GL_CHECK_ERRORS;
-  while (!Input.keys[GLFW_KEY_W]) {
+  glfwSwapBuffers(window);
+  while (!Input.keys[GLFW_KEY_R] && !Input.keys[GLFW_KEY_ESCAPE]) {
     glfwPollEvents();
   }
+
+  Level.reset();
+  Point starting_pos;
+  starting_pos = Level.read("../resources/levels/1.txt");   
+
+  player.setPos(starting_pos.x, starting_pos.y);
+  player.setOldPos(starting_pos.x, starting_pos.y);
+  player.status = playerStatus::OK;
+  player.smash_cooldown = 0;
+
+  Level.draw(screen, tile);
+}
+
+void gameOver(Image &screen, Image &game_over, LevelMap &Level, std::map <char, Image> &tile, Player &player, Point starting_pos, GLFWwindow*  window) {
+  game_over.Draw(screen);
+  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); GL_CHECK_ERRORS;
+  glDrawPixels (WINDOW_WIDTH, WINDOW_HEIGHT, GL_RGBA, GL_UNSIGNED_BYTE, screen.Data()); GL_CHECK_ERRORS;
+  glfwSwapBuffers(window);
+  while (!Input.keys[GLFW_KEY_R] && !Input.keys[GLFW_KEY_ESCAPE]) {
+    glfwPollEvents();
+  }
+
+  // replaying current level
+
+  // restoring broken walls
+  for (int x = 0; x < X_TILES; ++x) {
+    for (int y = 0; y < Y_TILES; ++y) {
+      if (Level.get(x,y) == 'b') {
+        Level.set(x,y,'%');
+      }
+    }
+  }
+
+  // restoring starting position and status
+  player.status = playerStatus::OK;
+  player.smash_cooldown = 0;
+  player.setPos(starting_pos.x, starting_pos.y);
+  player.setOldPos(starting_pos.x, starting_pos.y);
+
+  Level.draw(screen, tile);
+}
+
+void nextLevel(Image &screen, Image &next_level, LevelMap &Level, std::map <char, Image> &tile, Player &player, GLFWwindow*  window, int curLevel) {
+
+  next_level.Draw(screen);
+  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); GL_CHECK_ERRORS;
+  glDrawPixels (WINDOW_WIDTH, WINDOW_HEIGHT, GL_RGBA, GL_UNSIGNED_BYTE, screen.Data()); GL_CHECK_ERRORS;
+  glfwSwapBuffers(window);
+  while (!Input.keys[GLFW_KEY_P] && !Input.keys[GLFW_KEY_ESCAPE]) {
+    glfwPollEvents();
+  }
+
+  Level.reset();
+  Point starting_pos;
+  starting_pos = Level.read("../resources/levels/" + std::to_string(curLevel) + ".txt");   
+
+  player.setPos(starting_pos.x, starting_pos.y);
+  player.setOldPos(starting_pos.x, starting_pos.y);
+  player.status = playerStatus::OK;
+  player.smash_cooldown = 0;
+
+  Level.draw(screen, tile);
 }
 
 int main(int argc, char** argv)
@@ -403,7 +541,7 @@ int main(int argc, char** argv)
 //	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 	glfwWindowHint(GLFW_RESIZABLE, GL_FALSE);
 
-  GLFWwindow*  window = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "IGRA GODA POEDU S NEI NA E3", nullptr, nullptr);
+  GLFWwindow*  window = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Escaping The Castle", nullptr, nullptr);
 	if (window == nullptr)
 	{
 		std::cout << "Failed to create GLFW window" << std::endl;
@@ -426,31 +564,46 @@ int main(int argc, char** argv)
 	while (gl_error != GL_NO_ERROR)
 		gl_error = glGetError();
 
-	Image screenBuffer(WINDOW_WIDTH, WINDOW_HEIGHT, 4);
+	Image screen(WINDOW_WIDTH, WINDOW_HEIGHT, 4);
 
   glViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);  GL_CHECK_ERRORS;
   glClearColor(0.0f, 0.0f, 0.0f, 1.0f); GL_CHECK_ERRORS;
+
+  Image game_over("../resources/tiles/game_over.png");
+  Image next_level("../resources/tiles/next_level.png");
+  Image victory("../resources/tiles/victory.png");
+  
+  game_over.set_x(220);
+  game_over.set_y(350);
+
+  next_level.set_x(220);
+  next_level.set_y(350);
+
+  victory.set_x(220);
+  victory.set_y(350);
+
   auto tile = std::map <char, Image>();
 
-  tile[' '] = Image("../resources/tiles/space.png");
+
+  tile[' '] = Image("../resources/tiles/floor.png");
+  tile['*'] = Image("../resources/tiles/floor.png");
+  tile['x'] = Image("../resources/tiles/floor.png");
+  tile['#'] = Image("../resources/tiles/floor.png");
+  tile['%'] = Image("../resources/tiles/floor.png");
+  tile['b'] = Image("../resources/tiles/floor.png");
   tile['.'] = Image("../resources/tiles/floor.png");
-  tile['x'] = Image("../resources/tiles/exit.png");
 
-  tile['#'] = Image("../resources/tiles/unbreakable_wall.png");
-  tile['%'] = Image("../resources/tiles/breakable_wall.png");
 
+  // drawing everything on the floor
+  Image("../resources/tiles/space_1.png").Draw(tile[' ']);
+  Image("../resources/tiles/space_2.png").Draw(tile['*']);
+  Image("../resources/tiles/exit.png").Draw(tile['x']);
+  Image("../resources/tiles/unbreakable_wall.png").Draw(tile['#']);
+  Image("../resources/tiles/breakable_wall.png").Draw(tile['%']); 
   // broken wall appears
   // after breaking a breakable wall.
-  // broken_wall.png, which is a lying rock,
-  // is drawn above the floor tile
-  tile['b'] = tile['.'];
   Image("../resources/tiles/broken_wall.png").Draw(tile['b']);
 
-  //std::cout << tile.size() << std::endl;
-
-  //PLAYER
-  //tile['@'] = ; 
-  //std::cout << "SDMVLKSKLSRBJK:SRBNJR:" << std::endl;
 
   Point starting_pos;
   LevelMap Level;
@@ -463,59 +616,55 @@ int main(int argc, char** argv)
     return 0;
   }
 
+  Image left = Image("../resources/tiles/floor.png");
+  Image right = Image("../resources/tiles/floor.png");
 
-  Player player{starting_pos};
+  Image("../resources/tiles/knight_left.png").Draw(left);
+  Image("../resources/tiles/knight_right.png").Draw(right);
 
-  //std::cout << "SDMVLKSKLSRBJK:SRBNJR:" << std::endl;
+  Player player(starting_pos, left, right);
 
-  Level.draw(screenBuffer, tile);
+  Level.draw(screen, tile);
   int curLevel = 1;
 
   //game loop
-	while (!glfwWindowShouldClose(window))
-	{
+	while (!glfwWindowShouldClose(window)) {
 		GLfloat currentFrame = glfwGetTime();
 		deltaTime = currentFrame - lastFrame;
 		lastFrame = currentFrame;
     glfwPollEvents();
 
     processPlayerMovement(player, Level);
-    if (player.Moved()) {
-      redrawArea(player, screenBuffer, Level, tile);      
+    if (player.Moved() || player.smash_cooldown == SMASH_COOLDOWN) {
+      redrawArea(player, screen, Level, tile);      
     }
+    Level.animation(screen, tile);
 
-    player.Draw(screenBuffer);
+    player.Draw(screen);
 
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); GL_CHECK_ERRORS;
 
-    glDrawPixels (WINDOW_WIDTH, WINDOW_HEIGHT, GL_RGBA, GL_UNSIGNED_BYTE, screenBuffer.Data()); GL_CHECK_ERRORS;
+    glDrawPixels (WINDOW_WIDTH, WINDOW_HEIGHT, GL_RGBA, GL_UNSIGNED_BYTE, screen.Data()); GL_CHECK_ERRORS;
 
     if (player.status == playerStatus::ESCAPED) {
       curLevel++;
       if (curLevel > N_LEVELS) {
-        Win(screenBuffer);
-        break;
+        Win(screen, victory, Level, tile, player, window);
+        continue;
       } 
 
-      Level.reset();
-      try {
-        starting_pos = Level.read("../resources/levels/" + std::to_string(curLevel) + ".txt");   
+      try { 
+        nextLevel(screen, next_level, Level, tile, player, window, curLevel);
       } catch (std::runtime_error &exc) {
         std::cout << exc.what() << std::endl;
         glfwTerminate();
         return 0;
       }
-
-      player.setPos(starting_pos.x, starting_pos.y);
-      Level.draw(screenBuffer, tile);
-      player.status = playerStatus::OK;
-
-      nextLevel(screenBuffer);
+  
     }
 
     if (player.status == playerStatus::DEAD) {
-      gameOver(screenBuffer);
-      break;
+      gameOver(screen, game_over, Level, tile, player, starting_pos, window);
     }
 
 		glfwSwapBuffers(window);

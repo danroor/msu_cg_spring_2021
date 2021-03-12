@@ -13,7 +13,7 @@ struct Pixel
   uint8_t a;
 };
 
-Pixel mix(Pixel &oldPixel, Pixel newPixel) {
+static Pixel mix(Pixel &oldPixel, Pixel newPixel) {
   newPixel.r = newPixel.a / 255.0 * (newPixel.r - oldPixel.r) + oldPixel.r;
   newPixel.g = newPixel.a / 255.0 * (newPixel.g - oldPixel.g) + oldPixel.g;
   newPixel.b = newPixel.a / 255.0 * (newPixel.b - oldPixel.b) + oldPixel.b;
